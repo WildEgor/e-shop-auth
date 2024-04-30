@@ -1,4 +1,4 @@
-package health_check_handler
+package handlers
 
 import (
 	"github.com/gofiber/fiber/v3"

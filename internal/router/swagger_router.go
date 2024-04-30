@@ -13,5 +13,5 @@ func NewSwaggerRouter() *SwaggerRouter {
 
 // Setup func for describe group of API Docs routes.
 func (sr *SwaggerRouter) Setup(app *fiber.App) {
-
+	// TODO
 }

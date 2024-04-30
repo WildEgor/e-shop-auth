@@ -7,26 +7,69 @@
 package pkg
 
 import (
-	"github.com/WildEgor/e-shop-fiber-microservice-boilerplate/internal/config"
-	"github.com/WildEgor/e-shop-fiber-microservice-boilerplate/internal/handlers/errors"
-	"github.com/WildEgor/e-shop-fiber-microservice-boilerplate/internal/handlers/health_check"
-	"github.com/WildEgor/e-shop-fiber-microservice-boilerplate/internal/handlers/ready_check"
-	"github.com/WildEgor/e-shop-fiber-microservice-boilerplate/internal/router"
+	"github.com/WildEgor/e-shop-auth/internal/adapters"
+	"github.com/WildEgor/e-shop-auth/internal/configs"
+	"github.com/WildEgor/e-shop-auth/internal/db/mongodb"
+	"github.com/WildEgor/e-shop-auth/internal/db/redis"
+	handlers3 "github.com/WildEgor/e-shop-auth/internal/handlers/change-email"
+	handlers2 "github.com/WildEgor/e-shop-auth/internal/handlers/change-password"
+	handlers4 "github.com/WildEgor/e-shop-auth/internal/handlers/change-phone"
+	handlers6 "github.com/WildEgor/e-shop-auth/internal/handlers/confirm-email"
+	handlers5 "github.com/WildEgor/e-shop-auth/internal/handlers/confirm-phone"
+	"github.com/WildEgor/e-shop-auth/internal/handlers/errors"
+	handlers15 "github.com/WildEgor/e-shop-auth/internal/handlers/health_check"
+	handlers11 "github.com/WildEgor/e-shop-auth/internal/handlers/login"
+	handlers12 "github.com/WildEgor/e-shop-auth/internal/handlers/logout"
+	handlers7 "github.com/WildEgor/e-shop-auth/internal/handlers/me"
+	handlers13 "github.com/WildEgor/e-shop-auth/internal/handlers/otp-generate"
+	handlers14 "github.com/WildEgor/e-shop-auth/internal/handlers/otp-login"
+	handlers16 "github.com/WildEgor/e-shop-auth/internal/handlers/ready_check"
+	handlers8 "github.com/WildEgor/e-shop-auth/internal/handlers/refresh"
+	handlers10 "github.com/WildEgor/e-shop-auth/internal/handlers/reg"
+	handlers9 "github.com/WildEgor/e-shop-auth/internal/handlers/update-profile"
+	"github.com/WildEgor/e-shop-auth/internal/repositories"
+	"github.com/WildEgor/e-shop-auth/internal/router"
+	"github.com/WildEgor/e-shop-auth/internal/services"
 	"github.com/google/wire"
 )
 
 // Injectors from server.go:
 
 func NewServer() (*Server, error) {
-	configurator := config.NewConfigurator()
-	appConfig := config.NewAppConfig(configurator)
-	errorsHandler := error_handler.NewErrorsHandler()
-	privateRouter := router.NewPrivateRouter()
-	healthCheckHandler := health_check_handler.NewHealthCheckHandler()
-	readyCheckHandler := ready_check_handler.NewReadyCheckHandler()
-	publicRouter := router.NewPublicRouter(healthCheckHandler, readyCheckHandler)
+	configurator := configs.NewConfigurator()
+	appConfig := configs.NewAppConfig(configurator)
+	errorsHandler := handlers.NewErrorsHandler()
+	mongoConfig := configs.NewMongoConfig(configurator)
+	mongoConnection := mongo.NewMongoConnection(mongoConfig)
+	userRepository := repositories.NewUserRepository(mongoConnection)
+	redisConfig := configs.NewRedisConfig(configurator)
+	redisConnection := redis.NewRedisDBConnection(redisConfig)
+	tokensRepository := repositories.NewTokensRepository(redisConnection)
+	jwtConfig := configs.NewJWTConfig(configurator)
+	jwtAuthenticator := services.NewJWTAuthenticator(jwtConfig)
+	changePasswordHandler := handlers2.NewChangePasswordHandler(userRepository, tokensRepository, jwtAuthenticator, jwtConfig)
+	otpConfig := configs.NewOTPConfig(configurator)
+	notifierConfig := configs.NewNotifierConfig(configurator)
+	notifierAdapter := adapters.NewNotifierAdapter(notifierConfig)
+	notificationService := services.NewNotificationService(otpConfig, notifierAdapter)
+	changeEmailHandler := handlers3.NewChangeEmailHandler(userRepository, notificationService)
+	changePhoneHandler := handlers4.NewChangePhoneHandler(userRepository, notificationService)
+	confirmPhoneHandler := handlers5.NewConfirmPhoneHandler(userRepository, tokensRepository, jwtAuthenticator, jwtConfig)
+	confirmEmailHandler := handlers6.NewConfirmEmailHandler(userRepository, tokensRepository, jwtAuthenticator, jwtConfig)
+	meHandler := handlers7.NewMeHandler(userRepository)
+	refreshHandler := handlers8.NewRefreshHandler(userRepository, tokensRepository, jwtAuthenticator, jwtConfig)
+	updateProfileHandler := handlers9.NewUpdateProfileHandler(userRepository)
+	privateRouter := router.NewPrivateRouter(changePasswordHandler, changeEmailHandler, changePhoneHandler, confirmPhoneHandler, confirmEmailHandler, meHandler, refreshHandler, updateProfileHandler, userRepository, jwtAuthenticator)
+	regHandler := handlers10.NewRegHandler(userRepository, tokensRepository, jwtAuthenticator, jwtConfig)
+	loginHandler := handlers11.NewLoginHandler(userRepository, tokensRepository, jwtAuthenticator, jwtConfig)
+	logoutHandler := handlers12.NewLogoutHandler(tokensRepository, jwtAuthenticator)
+	otpGenHandler := handlers13.NewOTPGenHandler(userRepository, notificationService)
+	otpLoginHandler := handlers14.NewOTPLoginHandler(userRepository, tokensRepository, jwtAuthenticator, jwtConfig)
+	healthCheckHandler := handlers15.NewHealthCheckHandler()
+	readyCheckHandler := handlers16.NewReadyCheckHandler()
+	publicRouter := router.NewPublicRouter(regHandler, loginHandler, logoutHandler, otpGenHandler, otpLoginHandler, healthCheckHandler, readyCheckHandler, userRepository, tokensRepository, jwtAuthenticator, jwtConfig)
 	swaggerRouter := router.NewSwaggerRouter()
-	server := NewApp(appConfig, errorsHandler, privateRouter, publicRouter, swaggerRouter)
+	server := NewApp(appConfig, errorsHandler, privateRouter, publicRouter, swaggerRouter, mongoConfig, mongoConnection, redisConfig, redisConnection)
 	return server, nil
 }
 

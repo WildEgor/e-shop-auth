@@ -1,24 +1,24 @@
-package config
+package configs
 
 import (
+	"github.com/WildEgor/e-shop-gopack/pkg/libs/logger/models"
 	"github.com/joho/godotenv"
 	"log/slog"
 )
 
-// Configurator dummy
 type Configurator struct{}
 
 func NewConfigurator() *Configurator {
 	c := &Configurator{}
-	c.load()
-
+	c.Load()
 	return c
 }
 
-// load Load env data from files (default: .env, .env.local)
-func (c *Configurator) load() {
+func (c *Configurator) Load() {
 	err := godotenv.Load(".env", ".env.local")
 	if err != nil {
-		slog.Error("error loading envs file")
+		slog.Error("error loading envs file", models.LogEntryAttr(&models.LogEntry{
+			Err: err,
+		}))
 	}
 }

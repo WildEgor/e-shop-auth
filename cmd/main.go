@@ -5,7 +5,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	server "github.com/WildEgor/e-shop-fiber-microservice-boilerplate/internal"
+	server "github.com/WildEgor/e-shop-auth/internal"
 )
 
 // @title		Swagger Doc
@@ -30,8 +30,8 @@ func main() {
 	defer done()
 
 	srv, _ := server.NewServer()
-	srv.Run(&ctx)
+	srv.Run(ctx)
 
 	<-ctx.Done()
-	srv.Shutdown()
+	srv.Shutdown(ctx)
 }

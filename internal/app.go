@@ -3,10 +3,12 @@ package pkg
 import (
 	"context"
 	"fmt"
-	"github.com/WildEgor/e-shop-fiber-microservice-boilerplate/internal/config"
-	eh "github.com/WildEgor/e-shop-fiber-microservice-boilerplate/internal/handlers/errors"
-	nfm "github.com/WildEgor/e-shop-fiber-microservice-boilerplate/internal/middlewares/not_found"
-	"github.com/WildEgor/e-shop-fiber-microservice-boilerplate/internal/router"
+	"github.com/WildEgor/e-shop-auth/internal/configs"
+	mongo2 "github.com/WildEgor/e-shop-auth/internal/db/mongodb"
+	"github.com/WildEgor/e-shop-auth/internal/db/redis"
+	eh "github.com/WildEgor/e-shop-auth/internal/handlers/errors"
+	nfm "github.com/WildEgor/e-shop-auth/internal/middlewares/not_found"
+	"github.com/WildEgor/e-shop-auth/internal/router"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/recover"
@@ -18,37 +20,56 @@ import (
 
 var AppSet = wire.NewSet(
 	NewApp,
-	config.ConfigsSet,
+	configs.ConfigsSet,
 	router.RouterSet,
 )
 
 // Server represents the main server configuration.
 type Server struct {
 	App       *fiber.App
-	AppConfig *config.AppConfig
+	AppConfig *configs.AppConfig
+
+	Mongo       *mongo2.MongoConnection
+	MongoConfig *configs.MongoConfig
+
+	Redis       *redis.RedisConnection
+	RedisConfig *configs.RedisConfig
 }
 
-func (srv *Server) Run(ctx *context.Context) {
+func (srv *Server) Run(ctx context.Context) {
 	slog.Info("server is listening")
+
+	srv.Mongo.Connect(ctx)
+	srv.Redis.Connect(ctx)
 
 	if err := srv.App.Listen(fmt.Sprintf(":%s", srv.AppConfig.Port)); err != nil {
 		slog.Error("unable to start server")
 	}
 }
 
-func (srv *Server) Shutdown() {
+func (srv *Server) Shutdown(ctx context.Context) {
 	slog.Info("shutdown service")
+
+	srv.Mongo.Disconnect(ctx)
+	srv.Redis.Disconnect(ctx)
+
 	if err := srv.App.Shutdown(); err != nil {
 		slog.Error("unable to shutdown server")
 	}
 }
 
 func NewApp(
-	ac *config.AppConfig,
+	ac *configs.AppConfig,
 	eh *eh.ErrorsHandler,
 	prr *router.PrivateRouter,
 	pbr *router.PublicRouter,
 	sr *router.SwaggerRouter,
+
+	mc *configs.MongoConfig,
+	mongo *mongo2.MongoConnection,
+
+	rc *configs.RedisConfig,
+	redis *redis.RedisConnection,
 ) *Server {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
@@ -80,7 +101,11 @@ func NewApp(
 	app.Use(nfm.NewNotFound())
 
 	return &Server{
-		App:       app,
-		AppConfig: ac,
+		App:         app,
+		AppConfig:   ac,
+		Mongo:       mongo,
+		MongoConfig: mc,
+		Redis:       redis,
+		RedisConfig: rc,
 	}
 }
